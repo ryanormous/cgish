@@ -1,0 +1,111 @@
+#!/bin/sh
+# NOTE: USES ash SHELL
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# GLOBAL
+
+# SCRIPT
+SCRIPT=$0
+
+# INVOCATION
+NAME=$(/bin/busybox basename ${SCRIPT})
+
+# PORT
+PORT=$1
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# FUNCTION
+
+function run_service()
+{
+    local CWD HOME FOREGROUND VERBOSE ADDR
+
+    # BIN DIRECTORY
+    CWD=$(/bin/busybox dirname ${SCRIPT})
+
+    # SERVICE HOME
+    HOME=$(/bin/busybox dirname ${CWD})
+
+    # DO NOT DAEMONIZE
+    FOREGROUND="-f"
+
+    # VERBOSE
+    VERBOSE="-vvv"
+
+    # ADDRESS
+    ADDR="0.0.0.0:${PORT:?}"
+
+    # DEBUG
+    set -x
+
+    # START FROM EMPTY ENVIRONMENT
+    /bin/busybox env -i       \
+        /bin/busybox httpd    \
+            ${FOREGROUND}         \
+            ${VERBOSE}            \
+            -p ${ADDR}            \
+            -h ${HOME}
+}
+
+
+function handle_request()
+{
+    local RESPONSE IFS i LEN
+
+    # BEGIN RESPONSE
+    RESPONSE="<pre>\n"
+
+    # DATE + TIME
+    RESPONSE="${RESPONSE}DATE=$(
+        /bin/busybox date '+%F %T'
+    )\n"
+
+    # HOSTNAME
+    RESPONSE="${RESPONSE}SERVER=$(
+        /bin/busybox hostname
+    )\n"
+
+    # ENVIRONMENT
+    IFS=$'\n'
+    for i in $(
+        /bin/busybox env |\
+        /bin/busybox sort 
+    ); do
+        RESPONSE="${RESPONSE}${i}\n"
+    done
+
+    # END RESPONSE
+    RESPONSE="${RESPONSE}<pre>"
+
+    # RESPONSE LENGTH
+    LEN=$(echo -en "${RESPONSE}" | /bin/busybox wc -c)
+
+    # RESPONSE
+    echo "Content-Type: text/html"
+    echo -e "Content-Length: ${LEN}\n"
+    echo -en ${RESPONSE}
+}
+
+
+function main()
+{
+    case ${NAME} in
+        index.cgi)
+            handle_request
+        ;;
+        run)
+            run_service
+        ;;
+        *)
+            echo "ERROR. NO SUCH FUNCTION: ${NAME}" >&2
+        ;;
+    esac
+}
+
+
+#~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~#
+# MAIN
+
+main
+
